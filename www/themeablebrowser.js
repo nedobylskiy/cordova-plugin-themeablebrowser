@@ -46,6 +46,10 @@ ThemeableBrowser.prototype = {
         exec(null, null, 'ThemeableBrowser', 'reload', []);
         return this;
     },
+    hide: function (eventname) {
+        exec(null, null, 'ThemeableBrowser', 'hide', []);
+        return this;
+    },
     addEventListener: function (eventname,f) {
         if (!(eventname in this.channels)) {
             this.channels[eventname] = channel.create(eventname);

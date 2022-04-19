@@ -68,7 +68,10 @@ import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.PluginManager;
 import org.apache.cordova.PluginResult;
-import org.apache.cordova.Whitelist;
+
+//import org.apache.cordova.Whitelist;
+import org.apache.cordova.Config;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -145,7 +148,13 @@ public class ThemeableBrowser extends CordovaPlugin {
                             shouldAllowNavigation = true;
                         }
                         if (shouldAllowNavigation == null) {
-                            shouldAllowNavigation = new Whitelist().isUrlWhiteListed(url);
+                            try {
+                                Method iuw = Config.class.getMethod("isUrlWhiteListed", String.class);
+                                shouldAllowNavigation = (Boolean)iuw.invoke(null, url);
+                            } catch (NoSuchMethodException e) {
+                            } catch (IllegalAccessException e) {
+                            } catch (InvocationTargetException e) {
+                            }
                         }
                         if (shouldAllowNavigation == null) {
                             try {
@@ -251,6 +260,19 @@ public class ThemeableBrowser extends CordovaPlugin {
                     }
                 });
             }
+        }
+        else if (action.equals("hide")) {
+                    this.cordova.getActivity().runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (dialog != null && !cordova.getActivity().isFinishing()) {
+                                dialog.hide();
+                            }
+                        }
+                    });
+                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+                    pluginResult.setKeepCallback(true);
+                    this.callbackContext.sendPluginResult(pluginResult);
         }
         else {
             return false;

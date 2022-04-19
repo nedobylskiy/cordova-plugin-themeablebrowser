@@ -841,7 +841,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                             forward.setEnabled(canGoForward);
                         }
                     }
-                });
+                }, tabId);
                 inAppWebView.setWebViewClient(client);
                 WebSettings settings = inAppWebView.getSettings();
                 settings.setJavaScriptEnabled(true);
@@ -1271,6 +1271,7 @@ public class ThemeableBrowser extends CordovaPlugin {
     public class ThemeableBrowserClient extends WebViewClient {
         PageLoadListener callback;
         CordovaWebView webView;
+        Integer tabId;
 
         /**
          * Constructor.
@@ -1279,9 +1280,10 @@ public class ThemeableBrowser extends CordovaPlugin {
          * @param callback
          */
         public ThemeableBrowserClient(CordovaWebView webView,
-                PageLoadListener callback) {
+                PageLoadListener callback, Integer tabId) {
             this.webView = webView;
             this.callback = callback;
+            this.tabId = tabId;
         }
 
         /**
@@ -1379,6 +1381,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                 JSONObject obj = new JSONObject();
                 obj.put("type", LOAD_START_EVENT);
                 obj.put("url", newloc);
+                obj.put("tabId", tabId);
                 sendUpdate(obj, true);
             } catch (JSONException ex) {
                 Log.e(LOG_TAG, "URI passed in has caused a JSON error.");
@@ -1392,12 +1395,13 @@ public class ThemeableBrowser extends CordovaPlugin {
                 JSONObject obj = new JSONObject();
                 obj.put("type", LOAD_STOP_EVENT);
                 obj.put("url", url);
+                obj.put("tabId", tabId);
 
                 sendUpdate(obj, true);
 
                 if (this.callback != null) {
-                    this.callback.onPageFinished(url, false, false/*, view.canGoBack(),
-                            view.canGoForward()*/);
+                    this.callback.onPageFinished(url,  view.canGoBack(),
+                            view.canGoForward());
                 }
             } catch (JSONException ex) {
             }
@@ -1412,6 +1416,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                 obj.put("url", failingUrl);
                 obj.put("code", errorCode);
                 obj.put("message", description);
+                obj.put("tabId", tabId);
 
                 sendUpdate(obj, true, PluginResult.Status.ERROR);
             } catch (JSONException ex) {

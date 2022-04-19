@@ -52,6 +52,7 @@ import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.JavascriptInterface;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -96,6 +97,7 @@ public class ThemeableBrowser extends CordovaPlugin {
     private static final String LOAD_START_EVENT = "loadstart";
     private static final String LOAD_STOP_EVENT = "loadstop";
     private static final String LOAD_ERROR_EVENT = "loaderror";
+    private static final String MESSAGE_EVENT = "message";
 
     private static final String ALIGN_LEFT = "left";
     private static final String ALIGN_RIGHT = "right";
@@ -847,6 +849,22 @@ public class ThemeableBrowser extends CordovaPlugin {
                 settings.setBuiltInZoomControls(features.zoom);
                 settings.setDisplayZoomControls(false);
                 settings.setPluginState(android.webkit.WebSettings.PluginState.ON);
+
+                // Add postMessage interface
+                class JsObject {
+                    @JavascriptInterface
+                    public void postMessage(String data) {
+                        try {
+                            JSONObject obj = new JSONObject();
+                            obj.put("type", MESSAGE_EVENT);
+                            obj.put("data", new JSONObject(data));
+                            obj.put("tabId", tabId);
+                            sendUpdate(obj, true);
+                        } catch (JSONException ex) {
+                        }
+                    }
+                }
+                inAppWebView.addJavascriptInterface(new JsObject(), "cordova_iab");
 
                 //Toggle whether this is enabled or not!
                 Bundle appSettings = cordova.getActivity().getIntent().getExtras();

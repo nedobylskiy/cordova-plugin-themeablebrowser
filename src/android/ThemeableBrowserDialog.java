@@ -56,7 +56,7 @@ public class ThemeableBrowserDialog extends Dialog {
             if (this.hardwareBack && this.themeableBrowser.canGoBack(tabId)) {
                 this.themeableBrowser.goBack(tabId);
             }  else {
-                this.themeableBrowser.closeDialog(tabId);
+                //this.themeableBrowser.closeDialog(tabId); //Why?
             }
         }
     }

@@ -19,67 +19,73 @@
  *
 */
 
-var exec = require('cordova/exec');
-var channel = require('cordova/channel');
-var modulemapper = require('cordova/modulemapper');
-var urlutil = require('cordova/urlutil');
+let exec = require('cordova/exec');
+let channel = require('cordova/channel');
+let modulemapper = require('cordova/modulemapper');
+let urlutil = require('cordova/urlutil');
+
+let nextTabId = 0;
+let channels = {};
 
 function ThemeableBrowser() {
-   this.channels = {};
+
 }
 
 ThemeableBrowser.prototype = {
     _eventHandler: function (event) {
-        if (event && (event.type in this.channels)) {
-            this.channels[event.type].fire(event);
+        if(event && channels[event.tabId] &&  (event.type in channels[event.tabId])) {
+            channels[event.tabId][event.type].fire(event);
         }
     },
     close: function (eventname) {
-        exec(null, null, 'ThemeableBrowser', 'close', []);
+        exec(null, null, 'ThemeableBrowser', 'close', [this.tabId]);
         return this;
     },
     show: function (eventname) {
-        exec(null, null, 'ThemeableBrowser', 'show', []);
+        exec(null, null, 'ThemeableBrowser', 'show', [this.tabId]);
         return this;
     },
     reload: function (eventname) {
-        exec(null, null, 'ThemeableBrowser', 'reload', []);
+        exec(null, null, 'ThemeableBrowser', 'reload', [this.tabId]);
         return this;
     },
     hide: function (eventname) {
-        exec(null, null, 'ThemeableBrowser', 'hide', []);
+        exec(null, null, 'ThemeableBrowser', 'hide', [this.tabId]);
         return this;
     },
-    addEventListener: function (eventname,f) {
-        if (!(eventname in this.channels)) {
-            this.channels[eventname] = channel.create(eventname);
+    addEventListener: function (eventname, f) {
+        if(!channels[this.tabId]) {
+            channels[this.tabId] = {};
         }
-        this.channels[eventname].subscribe(f);
+        if(!(eventname in channels[this.tabId])) {
+            channels[this.tabId][eventname] = channel.create(eventname + this.tabId);
+        }
+        channels[this.tabId][eventname].subscribe(f);
         return this;
     },
-    removeEventListener: function(eventname, f) {
-        if (eventname in this.channels) {
-            this.channels[eventname].unsubscribe(f);
+    removeEventListener: function (eventname, f) {
+        if(eventname in channels[this.tabId]) {
+            channels[this.tabId][eventname].unsubscribe(f);
         }
         return this;
     },
 
-    executeScript: function(injectDetails, cb) {
-        if (injectDetails.code) {
-            exec(cb, null, 'ThemeableBrowser', 'injectScriptCode', [injectDetails.code, !!cb]);
-        } else if (injectDetails.file) {
-            exec(cb, null, 'ThemeableBrowser', 'injectScriptFile', [injectDetails.file, !!cb]);
+    executeScript: function (injectDetails, cb) {
+        if(injectDetails.code) {
+            exec(cb, null, 'ThemeableBrowser', 'injectScriptCode', [injectDetails.code, !!cb, this.tabId]);
+        } else if(injectDetails.file) {
+            exec(cb, null, 'ThemeableBrowser', 'injectScriptFile', [injectDetails.file, !!cb, this.tabId]);
         } else {
             throw new Error('executeScript requires exactly one of code or file to be specified');
         }
         return this;
     },
 
-    insertCSS: function(injectDetails, cb) {
-        if (injectDetails.code) {
-            exec(cb, null, 'ThemeableBrowser', 'injectStyleCode', [injectDetails.code, !!cb]);
-        } else if (injectDetails.file) {
-            exec(cb, null, 'ThemeableBrowser', 'injectStyleFile', [injectDetails.file, !!cb]);
+    insertCSS: function (injectDetails, cb) {
+        if(injectDetails.code) {
+            exec(cb, null, 'ThemeableBrowser', 'injectStyleCode', [injectDetails.code, !!cb, this.tabId]);
+        } else if(injectDetails.file) {
+            exec(cb, null, 'ThemeableBrowser', 'injectStyleFile', [injectDetails.file, !!cb, this.tabId]);
         } else {
             throw new Error('insertCSS requires exactly one of code or file to be specified');
         }
@@ -87,31 +93,38 @@ ThemeableBrowser.prototype = {
     }
 };
 
-exports.open = function(strUrl, strWindowName, strWindowFeatures, callbacks) {
+exports.open = function (strUrl, strWindowName, strWindowFeatures, callbacks) {
     // Don't catch calls that write to existing frames (e.g. named iframes).
-    if (window.frames && window.frames[strWindowName]) {
-        var origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
+    if(window.frames && window.frames[strWindowName]) {
+        let origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
         return origOpenFunc.apply(window, arguments);
     }
 
     strUrl = urlutil.makeAbsolute(strUrl);
-    var iab = new ThemeableBrowser();
+    let iab = new ThemeableBrowser();
 
     callbacks = callbacks || {};
-    for (var callbackName in callbacks) {
+    for (let callbackName in callbacks) {
         iab.addEventListener(callbackName, callbacks[callbackName]);
     }
 
-    var cb = function(eventname) {
-       iab._eventHandler(eventname);
+    let cb = function (eventname) {
+        iab._eventHandler(eventname);
     };
+
+    strWindowFeatures.tabId = nextTabId;
+
 
     strWindowFeatures = strWindowFeatures && JSON.stringify(strWindowFeatures);
     // Slightly delay the actual native call to give the user a chance to
     // register event listeners first, otherwise some warnings or errors may be missed.
-    setTimeout(function() {
-        exec(cb, cb, 'ThemeableBrowser', 'open', [strUrl, strWindowName, strWindowFeatures || '']);
+    setTimeout(function () {
+        exec(cb, cb, 'ThemeableBrowser', 'open', [strUrl, strWindowName, strWindowFeatures || '', nextTabId]);
     }, 0);
+
+    iab.tabId = nextTabId;
+
+    nextTabId++;
     return iab;
 };
 

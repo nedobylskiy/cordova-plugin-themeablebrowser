@@ -81,6 +81,9 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import java.util.List;
+import java.util.ArrayList;
+
 @SuppressLint("SetJavaScriptEnabled")
 public class ThemeableBrowser extends CordovaPlugin {
 
@@ -107,8 +110,14 @@ public class ThemeableBrowser extends CordovaPlugin {
     private static final String WRN_UNEXPECTED = "unexpected";
     private static final String WRN_UNDEFINED = "undefined";
 
-    private ThemeableBrowserDialog dialog;
-    private WebView inAppWebView;
+
+    //private ThemeableBrowserDialog dialog;
+
+    private List<ThemeableBrowserDialog> dialogs = new ArrayList<ThemeableBrowserDialog>();
+    private List<WebView> inAppWebViews = new ArrayList<WebView>();
+
+    //private WebView inAppWebView;
+
     private EditText edittext;
     private CallbackContext callbackContext;
 
@@ -131,6 +140,9 @@ public class ThemeableBrowser extends CordovaPlugin {
             }
             final String target = t;
             final Options features = parseFeature(args.optString(2));
+
+            //Getting call tabId
+            Integer tabId = args.optInt(3);
 
             this.cordova.getActivity().runOnUiThread(new Runnable() {
                 @Override
@@ -204,47 +216,54 @@ public class ThemeableBrowser extends CordovaPlugin {
             });
         }
         else if (action.equals("close")) {
-            closeDialog();
+            Integer tabId = args.optInt(0);
+            closeDialog(tabId);
         }
         else if (action.equals("injectScriptCode")) {
+            Integer tabId = args.optInt(2);
             String jsWrapper = null;
             if (args.getBoolean(1)) {
                 jsWrapper = String.format("prompt(JSON.stringify([eval(%%s)]), 'gap-iab://%s')", callbackContext.getCallbackId());
             }
-            injectDeferredObject(args.getString(0), jsWrapper);
+            injectDeferredObject(args.getString(0), jsWrapper, tabId);
         }
         else if (action.equals("injectScriptFile")) {
+            Integer tabId = args.optInt(2);
             String jsWrapper;
             if (args.getBoolean(1)) {
                 jsWrapper = String.format("(function(d) { var c = d.createElement('script'); c.src = %%s; c.onload = function() { prompt('', 'gap-iab://%s'); }; d.body.appendChild(c); })(document)", callbackContext.getCallbackId());
             } else {
                 jsWrapper = "(function(d) { var c = d.createElement('script'); c.src = %s; d.body.appendChild(c); })(document)";
             }
-            injectDeferredObject(args.getString(0), jsWrapper);
+            injectDeferredObject(args.getString(0), jsWrapper, tabId);
         }
         else if (action.equals("injectStyleCode")) {
+            Integer tabId = args.optInt(2);
             String jsWrapper;
             if (args.getBoolean(1)) {
                 jsWrapper = String.format("(function(d) { var c = d.createElement('style'); c.innerHTML = %%s; d.body.appendChild(c); prompt('', 'gap-iab://%s');})(document)", callbackContext.getCallbackId());
             } else {
                 jsWrapper = "(function(d) { var c = d.createElement('style'); c.innerHTML = %s; d.body.appendChild(c); })(document)";
             }
-            injectDeferredObject(args.getString(0), jsWrapper);
+            injectDeferredObject(args.getString(0), jsWrapper, tabId);
         }
         else if (action.equals("injectStyleFile")) {
+            Integer tabId = args.optInt(2);
             String jsWrapper;
             if (args.getBoolean(1)) {
                 jsWrapper = String.format("(function(d) { var c = d.createElement('link'); c.rel='stylesheet'; c.type='text/css'; c.href = %%s; d.head.appendChild(c); prompt('', 'gap-iab://%s');})(document)", callbackContext.getCallbackId());
             } else {
                 jsWrapper = "(function(d) { var c = d.createElement('link'); c.rel='stylesheet'; c.type='text/css'; c.href = %s; d.head.appendChild(c); })(document)";
             }
-            injectDeferredObject(args.getString(0), jsWrapper);
+            injectDeferredObject(args.getString(0), jsWrapper, tabId);
         }
         else if (action.equals("show")) {
+            Integer tabId = args.optInt(0);
             this.cordova.getActivity().runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    dialog.show();
+                    dialogs.get(tabId).show();
+                    //dialog.show();
                 }
             });
             PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
@@ -252,21 +271,23 @@ public class ThemeableBrowser extends CordovaPlugin {
             this.callbackContext.sendPluginResult(pluginResult);
         }
         else if (action.equals("reload")) {
-            if (inAppWebView != null) {
+            Integer tabId = args.optInt(0);
+            if (inAppWebViews.get(tabId) != null) {
                 this.cordova.getActivity().runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        inAppWebView.reload();
+                        inAppWebViews.get(tabId).reload();
                     }
                 });
             }
         }
         else if (action.equals("hide")) {
+                    Integer tabId = args.optInt(0);
                     this.cordova.getActivity().runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if (dialog != null && !cordova.getActivity().isFinishing()) {
-                                dialog.hide();
+                            if (dialogs.get(tabId) != null && !cordova.getActivity().isFinishing()) {
+                                dialogs.get(tabId).hide();
                             }
                         }
                     });
@@ -285,7 +306,7 @@ public class ThemeableBrowser extends CordovaPlugin {
      */
     @Override
     public void onReset() {
-        closeDialog();
+        //closeDialog();
     }
 
     /**
@@ -293,7 +314,7 @@ public class ThemeableBrowser extends CordovaPlugin {
      * Stop listener.
      */
     public void onDestroy() {
-        closeDialog();
+        //closeDialog();
     }
 
     /**
@@ -312,7 +333,7 @@ public class ThemeableBrowser extends CordovaPlugin {
      *                    is properly injected, or null if the source string is JavaScript text
      *                    which should be executed directly.
      */
-    private void injectDeferredObject(String source, String jsWrapper) {
+    private void injectDeferredObject(String source, String jsWrapper, Integer tabId) {
         String scriptToInject;
         if (jsWrapper != null) {
             org.json.JSONArray jsonEsc = new org.json.JSONArray();
@@ -328,13 +349,13 @@ public class ThemeableBrowser extends CordovaPlugin {
             @SuppressLint("NewApi")
             @Override
             public void run() {
-                if (inAppWebView != null) {
+                if (inAppWebViews.get(tabId) != null) {
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
                         // This action will have the side-effect of blurring the currently focused
                         // element
-                        inAppWebView.loadUrl("javascript:" + finalScriptToInject);
+                        inAppWebViews.get(tabId).loadUrl("javascript:" + finalScriptToInject);
                     } else {
-                        inAppWebView.evaluateJavascript(finalScriptToInject, null);
+                        inAppWebViews.get(tabId).evaluateJavascript(finalScriptToInject, null);
                     }
                 }
             }
@@ -403,27 +424,27 @@ public class ThemeableBrowser extends CordovaPlugin {
     /**
      * Closes the dialog
      */
-    public void closeDialog() {
+    public void closeDialog(Integer tabId) {
         this.cordova.getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 // The JS protects against multiple calls, so this should happen only when
                 // closeDialog() is called by other native code.
-                if (inAppWebView == null) {
+                if (inAppWebViews.get(tabId) == null) {
                     emitWarning(WRN_UNEXPECTED, "Close called but already closed.");
                     return;
                 }
 
-                inAppWebView.setWebViewClient(new WebViewClient() {
+                inAppWebViews.get(tabId).setWebViewClient(new WebViewClient() {
                     // NB: wait for about:blank before dismissing
                     public void onPageFinished(WebView view, String url) {
-                        if (dialog != null) {
-                            dialog.dismiss();
+                        if (dialogs.get(tabId) != null) {
+                            dialogs.get(tabId).dismiss();
                         }
 
                         // Clean up.
-                        dialog = null;
-                        inAppWebView = null;
+                        dialogs.set(tabId, null);
+                        inAppWebViews.set(tabId, null);
                         edittext = null;
                         callbackContext = null;
                     }
@@ -433,7 +454,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                 // thread other than your app's UI thread, it can cause
                 // unexpected results."
                 // http://developer.android.com/guide/webapps/migrating.html#Threads
-                inAppWebView.loadUrl("about:blank");
+                inAppWebViews.get(tabId).loadUrl("about:blank");
 
                 try {
                     JSONObject obj = new JSONObject();
@@ -445,11 +466,11 @@ public class ThemeableBrowser extends CordovaPlugin {
         });
     }
 
-    private void emitButtonEvent(Event event, String url) {
-        emitButtonEvent(event, url, null);
+    private void emitButtonEvent(Event event, String url, Integer tabId) {
+        emitButtonEvent(event, url, null, tabId);
     }
 
-    private void emitButtonEvent(Event event, String url, Integer index) {
+    private void emitButtonEvent(Event event, String url, Integer index, Integer tabId) {
         if (event != null && event.event != null) {
             try {
                 JSONObject obj = new JSONObject();
@@ -458,6 +479,9 @@ public class ThemeableBrowser extends CordovaPlugin {
                 if (index != null) {
                     obj.put("index", index.intValue());
                 }
+
+                obj.put("tabId", tabId);
+
                 sendUpdate(obj, true);
             } catch (JSONException e) {
                 // Ignore, should never happen.
@@ -494,9 +518,9 @@ public class ThemeableBrowser extends CordovaPlugin {
     /**
      * Checks to see if it is possible to go back one page in history, then does so.
      */
-    public void goBack() {
-        if (this.inAppWebView != null && this.inAppWebView.canGoBack()) {
-            this.inAppWebView.goBack();
+    public void goBack(Integer tabId) {
+        if (this.inAppWebViews.get(tabId) != null && this.inAppWebViews.get(tabId).canGoBack()) {
+            this.inAppWebViews.get(tabId).goBack();
         }
     }
 
@@ -504,16 +528,16 @@ public class ThemeableBrowser extends CordovaPlugin {
      * Can the web browser go back?
      * @return boolean
      */
-    public boolean canGoBack() {
-        return this.inAppWebView != null && this.inAppWebView.canGoBack();
+    public boolean canGoBack(Integer tabId) {
+        return this.inAppWebViews.get(tabId) != null && this.inAppWebViews.get(tabId).canGoBack();
     }
 
     /**
      * Checks to see if it is possible to go forward one page in history, then does so.
      */
-    private void goForward() {
-        if (this.inAppWebView != null && this.inAppWebView.canGoForward()) {
-            this.inAppWebView.goForward();
+    private void goForward(Integer tabId) {
+        if (this.inAppWebViews.get(tabId) != null && this.inAppWebViews.get(tabId).canGoForward()) {
+            this.inAppWebViews.get(tabId).goForward();
         }
     }
 
@@ -522,16 +546,16 @@ public class ThemeableBrowser extends CordovaPlugin {
      *
      * @param url to load
      */
-    private void navigate(String url) {
+    private void navigate(String url, Integer tabId) {
         InputMethodManager imm = (InputMethodManager)this.cordova.getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(edittext.getWindowToken(), 0);
 
         if (!url.startsWith("http") && !url.startsWith("file:")) {
-            this.inAppWebView.loadUrl("http://" + url);
+            this.inAppWebViews.get(tabId).loadUrl("http://" + url);
         } else {
-            this.inAppWebView.loadUrl(url);
+            this.inAppWebViews.get(tabId).loadUrl(url);
         }
-        this.inAppWebView.requestFocus();
+        this.inAppWebViews.get(tabId).requestFocus();
     }
 
     private ThemeableBrowser getThemeableBrowser() {
@@ -552,10 +576,19 @@ public class ThemeableBrowser extends CordovaPlugin {
         Runnable runnable = new Runnable() {
             @SuppressLint("NewApi")
             public void run() {
+
+                //Get TabId
+                Integer tabId = features.tabId;
+
+
+                WebView inAppWebView;
+
                 // Let's create the main dialog
-                dialog = new ThemeableBrowserDialog(cordova.getActivity(),
+
+
+               ThemeableBrowserDialog dialog = new ThemeableBrowserDialog(cordova.getActivity(),
                         android.R.style.Theme_Black_NoTitleBar,
-                        features.hardwareback);
+                        features.hardwareback, tabId);
                 if (!features.disableAnimation) {
                     dialog.getWindow().getAttributes().windowAnimations
                             = android.R.style.Animation_Dialog;
@@ -564,8 +597,13 @@ public class ThemeableBrowser extends CordovaPlugin {
                 dialog.setCancelable(true);
                 dialog.setThemeableBrowser(getThemeableBrowser());
 
+                dialogs.add(tabId, dialog);
+
+
                 // Main container layout
                 ViewGroup main = null;
+
+
 
                 if (features.fullscreen) {
                     main = new FrameLayout(cordova.getActivity());
@@ -631,7 +669,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                     public boolean onKey(View v, int keyCode, KeyEvent event) {
                         // If the event is a key-down event on the "enter" button
                         if ((event.getAction() == KeyEvent.ACTION_DOWN) && (keyCode == KeyEvent.KEYCODE_ENTER)) {
-                            navigate(edittext.getText().toString());
+                            navigate(edittext.getText().toString(), tabId);
                             return true;
                         }
                         return false;
@@ -646,12 +684,12 @@ public class ThemeableBrowser extends CordovaPlugin {
                         public void onClick(View v) {
                             emitButtonEvent(
                                     features.backButton,
-                                    inAppWebView.getUrl());
+                                    inAppWebViews.get(tabId).getUrl(), null, tabId);
 
-                            if (features.backButtonCanClose && !canGoBack()) {
-                                closeDialog();
+                            if (features.backButtonCanClose && !canGoBack(tabId)) {
+                                closeDialog(tabId);
                             } else {
-                                goBack();
+                                goBack(tabId);
                             }
                         }
                     }
@@ -669,9 +707,9 @@ public class ThemeableBrowser extends CordovaPlugin {
                         public void onClick(View v) {
                             emitButtonEvent(
                                     features.forwardButton,
-                                    inAppWebView.getUrl());
+                                    inAppWebViews.get(tabId).getUrl(), null, tabId);
 
-                            goForward();
+                            goForward(tabId);
                         }
                     }
                 );
@@ -689,8 +727,8 @@ public class ThemeableBrowser extends CordovaPlugin {
                         public void onClick(View v) {
                             emitButtonEvent(
                                     features.closeButton,
-                                    inAppWebView.getUrl());
-                            closeDialog();
+                                    inAppWebViews.get(tabId).getUrl(), null, tabId);
+                            closeDialog(tabId);
                         }
                     }
                 );
@@ -712,7 +750,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                             if (event.getAction() == MotionEvent.ACTION_UP) {
                                 emitButtonEvent(
                                         features.menu,
-                                        inAppWebView.getUrl());
+                                        inAppWebViews.get(tabId).getUrl(), null, tabId);
                             }
                             return false;
                         }
@@ -733,11 +771,11 @@ public class ThemeableBrowser extends CordovaPlugin {
                                     public void onItemSelected(
                                             AdapterView<?> adapterView,
                                             View view, int i, long l) {
-                                        if (inAppWebView != null
+                                        if (inAppWebViews.get(tabId) != null
                                                 && i < features.menu.items.length) {
                                             emitButtonEvent(
                                                     features.menu.items[i],
-                                                    inAppWebView.getUrl(), i);
+                                                    inAppWebViews.get(tabId).getUrl(), i, tabId);
                                         }
                                     }
 
@@ -768,10 +806,13 @@ public class ThemeableBrowser extends CordovaPlugin {
                     if (features.title.staticText != null) {
                         title.setText(features.title.staticText);
                     }
+
                 }
 
                 // WebView
                 inAppWebView = new WebView(cordova.getActivity());
+                inAppWebViews.add(tabId, inAppWebView);
+
                 final ViewGroup.LayoutParams inAppWebViewParams = features.fullscreen
                         ? new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
                         : new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0);
@@ -847,7 +888,7 @@ public class ThemeableBrowser extends CordovaPlugin {
                                 public void onClick(View view) {
                                     if (inAppWebView != null) {
                                         emitButtonEvent(buttonProps,
-                                                inAppWebView.getUrl(), index);
+                                                inAppWebView.getUrl(), index, tabId);
                                     }
                                 }
                             }
@@ -1337,8 +1378,8 @@ public class ThemeableBrowser extends CordovaPlugin {
                 sendUpdate(obj, true);
 
                 if (this.callback != null) {
-                    this.callback.onPageFinished(url, view.canGoBack(),
-                            view.canGoForward());
+                    this.callback.onPageFinished(url, false, false/*, view.canGoBack(),
+                            view.canGoForward()*/);
                 }
             } catch (JSONException ex) {
             }
@@ -1426,6 +1467,7 @@ public class ThemeableBrowser extends CordovaPlugin {
         public boolean backButtonCanClose;
         public boolean disableAnimation;
         public boolean fullscreen;
+        public Integer tabId;
     }
 
     private static class Event {

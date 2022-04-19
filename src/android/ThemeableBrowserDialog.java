@@ -33,12 +33,14 @@ public class ThemeableBrowserDialog extends Dialog {
     Context context;
     ThemeableBrowser themeableBrowser = null;
     boolean hardwareBack;
+    Integer tabId;
 
     public ThemeableBrowserDialog(Context context, int theme,
-          boolean hardwareBack) {
+          boolean hardwareBack, Integer tabId) {
         super(context, theme);
         this.context = context;
         this.hardwareBack = hardwareBack;
+        this.tabId = tabId;
     }
 
     public void setThemeableBrowser(ThemeableBrowser browser) {
@@ -51,10 +53,10 @@ public class ThemeableBrowserDialog extends Dialog {
         } else {
             // better to go through in themeableBrowser because it does a clean
             // up
-            if (this.hardwareBack && this.themeableBrowser.canGoBack()) {
-                this.themeableBrowser.goBack();
+            if (this.hardwareBack && this.themeableBrowser.canGoBack(tabId)) {
+                this.themeableBrowser.goBack(tabId);
             }  else {
-                this.themeableBrowser.closeDialog();
+                this.themeableBrowser.closeDialog(tabId);
             }
         }
     }

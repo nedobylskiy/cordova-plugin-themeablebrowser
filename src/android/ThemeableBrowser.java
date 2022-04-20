@@ -85,6 +85,14 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.ArrayList;
 
+import android.webkit.WebResourceResponse;
+import android.webkit.WebResourceRequest;
+import java.util.Date;
+import java.util.Map;
+import java.util.HashMap;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
 @SuppressLint("SetJavaScriptEnabled")
 public class ThemeableBrowser extends CordovaPlugin {
 
@@ -236,6 +244,16 @@ public class ThemeableBrowser extends CordovaPlugin {
                 jsWrapper = String.format("(function(d) { var c = d.createElement('script'); c.src = %%s; c.onload = function() { prompt('', 'gap-iab://%s'); }; d.body.appendChild(c); })(document)", callbackContext.getCallbackId());
             } else {
                 jsWrapper = "(function(d) { var c = d.createElement('script'); c.src = %s; d.body.appendChild(c); })(document)";
+            }
+            injectDeferredObject(args.getString(0), jsWrapper, tabId);
+        }
+        else if (action.equals("injectModuleFile")) {
+            Integer tabId = args.optInt(2);
+            String jsWrapper;
+            if (args.getBoolean(1)) {
+                jsWrapper = String.format("(function(d) { var c = d.createElement('script'); c.src = %%s; c.type='module'; c.onload = function() { prompt('', 'gap-iab://%s'); }; d.body.appendChild(c); })(document)", callbackContext.getCallbackId());
+            } else {
+                jsWrapper = "(function(d) { var c = d.createElement('script'); c.src = %s; c.type='module'; d.body.appendChild(c); })(document)";
             }
             injectDeferredObject(args.getString(0), jsWrapper, tabId);
         }
@@ -450,6 +468,9 @@ public class ThemeableBrowser extends CordovaPlugin {
                         edittext = null;
                         callbackContext = null;
                     }
+
+
+
                 });
 
                 // NB: From SDK 19: "If you call methods on WebView from any
@@ -849,6 +870,11 @@ public class ThemeableBrowser extends CordovaPlugin {
                 settings.setBuiltInZoomControls(features.zoom);
                 settings.setDisplayZoomControls(false);
                 settings.setPluginState(android.webkit.WebSettings.PluginState.ON);
+                //settings.setAllowFileAccessFromFileURLs(true);
+                   // settings.setAllowFileAccess(true);
+                  //  settings.setAllowFileAccessFromFileURLs(true);
+                 //   settings.setAllowContentAccess(true);
+                //    settings.setAllowUniversalAccessFromFileURLs(true);
 
                 // Add postMessage interface
                 class JsObject {
@@ -1421,6 +1447,80 @@ public class ThemeableBrowser extends CordovaPlugin {
                 sendUpdate(obj, true, PluginResult.Status.ERROR);
             } catch (JSONException ex) {
             }
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(final WebView view,  WebResourceRequest request) {
+
+
+              if (request.getUrl().toString().contains("**injection**") && (request.getUrl().toString().endsWith(".js") || request.getUrl().toString().endsWith(".mjs") || request.getUrl().toString().endsWith(".wasm"))) {
+
+                        String url = request.getUrl().toString();
+                        String assetPath = url.substring(url.indexOf("**injection**") + "**injection**".length(), url.length());
+                        try {
+                            if(request.getUrl().toString().endsWith(".js") || request.getUrl().toString().endsWith(".mjs")){
+                                WebResourceResponse response = new WebResourceResponse(
+                                        "application/javascript",
+                                        "UTF8",
+                                        cordova.getActivity().getAssets().open(assetPath)
+                                );
+
+                                 return response;
+                            }
+
+
+                            if(request.getUrl().toString().endsWith(".wasm")){
+                                WebResourceResponse response = new WebResourceResponse(
+                                        "application/wasm",
+                                        "UTF8",
+                                        cordova.getActivity().getAssets().open(assetPath)
+                                );
+
+                                 return response;
+                            }
+
+                        } catch (IOException e) {
+                            e.printStackTrace(); // Failed to load asset file
+                            return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", null, null);
+                        }
+
+
+
+              }
+
+              if (request.getUrl().toString().endsWith(".js") || request.getUrl().toString().endsWith(".mjs")) {
+
+                        WebResourceResponse intercepted = super.shouldInterceptRequest(view, request);
+
+                         /*if (intercepted != null){
+                            intercepted.setMimeType("text/javascript");
+                         }*/
+                         return intercepted;
+              }
+
+               if (request.getUrl().toString().startsWith("https://localhost")) {
+
+                          SimpleDateFormat formatter = new SimpleDateFormat("E, dd MMM yyyy kk:mm:ss", Locale.US);
+
+                          Date date = new Date();
+                          final String dateString = formatter.format(date);
+
+                          Map<String, String> headers = new HashMap<String, String>() {{
+                              put("Connection", "close");
+                              put("Content-Type", "text/plain");
+                              put("Date", dateString + " GMT");
+                              put("Access-Control-Allow-Origin", "*");
+                              put("Access-Control-Allow-Methods", "GET, POST, DELETE, PUT, OPTIONS");
+                              put("Access-Control-Max-Age", "600");
+                              put("Access-Control-Allow-Credentials", "true");
+                              put("Access-Control-Allow-Headers", "accept, authorization, Content-Type");
+                          }};
+
+                          return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, null);
+               }
+
+
+            return null;
         }
     }
 

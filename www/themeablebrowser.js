@@ -33,7 +33,7 @@ function ThemeableBrowser() {
 
 ThemeableBrowser.prototype = {
     _eventHandler: function (event) {
-        if(event && channels[event.tabId] &&  (event.type in channels[event.tabId])) {
+        if(event && channels[event.tabId] && (event.type in channels[event.tabId])) {
             channels[event.tabId][event.type].fire(event);
         }
     },
@@ -70,11 +70,22 @@ ThemeableBrowser.prototype = {
         return this;
     },
 
+    /**
+     * Injects script by url
+     * @param {{isModule: boolean, code: string, file: string}} injectDetails
+     * @param cb
+     * @returns {ThemeableBrowser}
+     */
     executeScript: function (injectDetails, cb) {
+
         if(injectDetails.code) {
             exec(cb, null, 'ThemeableBrowser', 'injectScriptCode', [injectDetails.code, !!cb, this.tabId]);
         } else if(injectDetails.file) {
-            exec(cb, null, 'ThemeableBrowser', 'injectScriptFile', [injectDetails.file, !!cb, this.tabId]);
+            if(injectDetails.isModule) {
+                exec(cb, null, 'ThemeableBrowser', 'injectModuleFile', [injectDetails.file, !!cb, this.tabId]);
+            } else {
+                exec(cb, null, 'ThemeableBrowser', 'injectScriptFile', [injectDetails.file, !!cb, this.tabId]);
+            }
         } else {
             throw new Error('executeScript requires exactly one of code or file to be specified');
         }
